@@ -15,6 +15,7 @@ import {
   CONTAINER_INSTALL_LABEL,
   DATA_DIR,
   GROUPS_DIR,
+  MNEMON_DATA_DIR,
   ONECLI_API_KEY,
   ONECLI_URL,
   TIMEZONE,
@@ -324,6 +325,12 @@ function buildMounts(
   if (containerConfig.additionalMounts && containerConfig.additionalMounts.length > 0) {
     const validated = validateAdditionalMounts(containerConfig.additionalMounts, agentGroup.name);
     mounts.push(...validated);
+  }
+
+  // Mnemon shared memory — if MNEMON_DATA_DIR is set, mount it to /home/node/.mnemon
+  if (MNEMON_DATA_DIR) {
+    const expandedPath = MNEMON_DATA_DIR.replace(/^~/, process.env.HOME || '');
+    mounts.push({ hostPath: expandedPath, containerPath: '/home/node/.mnemon', readonly: false });
   }
 
   // Provider-contributed mounts (e.g. opencode-xdg)

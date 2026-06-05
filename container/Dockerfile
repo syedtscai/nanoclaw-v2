@@ -56,6 +56,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
        fi \
     && rm -rf /var/lib/apt/lists/*
 
+# ---- mnemon — persistent agent memory ----------------------------------------
+ARG MNEMON_VERSION=0.1.1
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://github.com/mnemon-dev/mnemon/releases/download/v${MNEMON_VERSION}/mnemon_${MNEMON_VERSION}_linux_${ARCH}.tar.gz" \
+    | tar -xz -C /usr/local/bin mnemon && \
+    chmod +x /usr/local/bin/mnemon
+
+# Point at the global shared-memory mount (host MNEMON_DATA_DIR -> /home/node/.mnemon,
+# wired in src/container-runner.ts buildMounts). mnemon honours this env var, so it must
+# match the mount or recall queries an empty per-group dir instead of the shared DB.
+ENV MNEMON_DATA_DIR=/home/node/.mnemon
+
 # Chromium path for agent-browser / Playwright consumers
 ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
