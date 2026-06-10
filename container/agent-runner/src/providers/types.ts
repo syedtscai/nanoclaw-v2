@@ -50,6 +50,12 @@ export interface ProviderOptions {
    * through to the underlying SDK. If omitted, the SDK default is used.
    */
   effort?: string;
+  /**
+   * Per-group override for the cold-resume transcript rotation cap (bytes).
+   * When set, takes precedence over CLAUDE_TRANSCRIPT_ROTATE_BYTES / the 12MB
+   * default. Used by the Claude provider's `maybeRotateContinuation`.
+   */
+  transcriptRotateBytes?: number;
 }
 
 export interface QueryInput {
