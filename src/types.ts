@@ -25,6 +25,7 @@ export interface ContainerConfigRow {
   packages_npm: string; // JSON: string[]
   additional_mounts: string; // JSON: AdditionalMountConfig[]
   cli_scope: string; // 'disabled' | 'group' | 'global'
+  transcript_rotate_bytes: number | null; // per-group cold-resume rotation cap; NULL = env/12MB default
   updated_at: string;
 }
 

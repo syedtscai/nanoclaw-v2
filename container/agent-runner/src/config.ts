@@ -18,6 +18,8 @@ export interface RunnerConfig {
   mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
   model?: string;
   effort?: string;
+  /** Per-group cold-resume transcript rotation cap (bytes); undefined = env/12MB default. */
+  transcriptRotateBytes?: number;
 }
 
 const DEFAULT_MAX_MESSAGES = 10;
@@ -47,6 +49,7 @@ export function loadConfig(): RunnerConfig {
     mcpServers: (raw.mcpServers as RunnerConfig['mcpServers']) || {},
     model: (raw.model as string) || undefined,
     effort: (raw.effort as string) || undefined,
+    transcriptRotateBytes: typeof raw.transcriptRotateBytes === 'number' ? raw.transcriptRotateBytes : undefined,
   };
 
   return _config;
