@@ -29,7 +29,7 @@ import {
 import {
   ensureSchema,
   openInboundDb as openInboundDbRaw,
-  openOutboundDb as openOutboundDbRaw,
+  openOutboundDbRecovered as openOutboundDbRecoveredRaw,
   openOutboundDbRw as openOutboundDbRwRaw,
   upsertSessionRouting,
   insertMessage,
@@ -364,9 +364,14 @@ export function openInboundDb(agentGroupId: string, sessionId: string): Database
   return db;
 }
 
-/** Open the outbound DB for a session (host reads only). */
+/**
+ * Open the outbound DB for a session (host reads only). Transparently recovers
+ * a hot rollback journal left by a SIGKILL'd container writer — without this, a
+ * killed container could wedge the session's outbound reads on every poll
+ * ("attempt to write a readonly database"). See openOutboundDbRecovered.
+ */
 export function openOutboundDb(agentGroupId: string, sessionId: string): Database.Database {
-  return openOutboundDbRaw(outboundDbPath(agentGroupId, sessionId));
+  return openOutboundDbRecoveredRaw(outboundDbPath(agentGroupId, sessionId));
 }
 
 /** Open the outbound DB for a session with write access. Only safe to call when no container is running. */

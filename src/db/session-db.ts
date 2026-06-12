@@ -40,6 +40,57 @@ export function openOutboundDbRw(dbPath: string): Database.Database {
   return db;
 }
 
+/**
+ * better-sqlite3's error message when a read-only handle is asked to perform a
+ * write — in practice, when it can't roll back a hot rollback journal.
+ */
+export function isReadonlyRollbackError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /readonly database|read-only/i.test(msg);
+}
+
+/**
+ * Roll back a hot journal left on outbound.db by a writer that died
+ * mid-transaction. A container is the sole outbound writer; when the host
+ * SIGKILLs it past the heartbeat ceiling, it can leave a `-journal` that
+ * SQLite must replay before any read succeeds. A read-only handle can't do
+ * that replay (it needs to write), so opening read-write once lets SQLite roll
+ * the journal back and delete it. No-op when the journal is absent/clean.
+ *
+ * Only call this after a read-only read has actually failed with
+ * `isReadonlyRollbackError`: that failure mode means no live writer holds the
+ * lock (a live writer yields SQLITE_BUSY, not SQLITE_READONLY), so taking a
+ * brief write handle is safe.
+ */
+export function recoverOutboundHotJournal(dbPath: string): void {
+  const db = new Database(dbPath);
+  try {
+    db.pragma('busy_timeout = 5000');
+    db.pragma('schema_version'); // header read forces the rollback to run now
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Open outbound.db read-only, transparently recovering a hot rollback journal
+ * if one is blocking reads. Returns a clean read-only handle. This is the
+ * host's read path (delivery + sweep): without it, a single SIGKILL'd
+ * container could wedge a session's outbound reads on every poll.
+ */
+export function openOutboundDbRecovered(dbPath: string): Database.Database {
+  const db = openOutboundDb(dbPath);
+  try {
+    db.pragma('schema_version'); // forces hot-journal detection on a read txn
+    return db;
+  } catch (err) {
+    db.close();
+    if (!isReadonlyRollbackError(err)) throw err;
+    recoverOutboundHotJournal(dbPath);
+    return openOutboundDb(dbPath);
+  }
+}
+
 export function upsertSessionRouting(
   db: Database.Database,
   routing: { channel_type: string | null; platform_id: string | null; thread_id: string | null },
