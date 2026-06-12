@@ -8,6 +8,7 @@
 #   - there are new files in the ingest inbox not yet in the manifest.
 #   - there are new/updated Jira issues since the per-board cursor.
 #   - there are new Slack messages since the cursor ts (one search.messages call).
+#   - there are new/updated HubSpot deals (TSC New Deals pipeline) since the cursor.
 # Otherwise wakeAgent=false → the task is marked completed, recurrence re-arms
 # the next 3-hourly occurrence, and not a single token is spent.
 #
@@ -34,6 +35,7 @@ MANIFEST="$WS/ingest-manifest.jsonl"
 CURSORS="$WS/jira-cursor.json"
 SLACK_CURSORS="$WS/slack-cursor.json"
 SLACK_IGNORE="$WS/slack-ignore.txt"   # channels to mute (one bare name/id per line; # = comment)
+HUBSPOT_CURSORS="$WS/hubspot-cursor.json"
 DIGEST_HOUR_SGT=9          # Singapore-time hour for the daily consolidated digest + Gmail sweep
 
 log() { echo "[iris-gate] $*" >&2; }
@@ -156,13 +158,42 @@ else
   log "no slack-cursor.json — leaving Slack to the daily floor run"
 fi
 
+# --- New HubSpot deals (TSC New Deals pipeline) modified since the cursor ---
+# One cheap search POST: deals in pipeline=default modified STRICTLY after
+# last_ms (epoch ms). Read the top-level "total". Auth (Bearer pat-… token) is
+# injected by the OneCLI gateway for api.hubapi.com — never put a token here.
+# Dormant-safe: with no secret yet HubSpot returns {"status":"error",...} → 0.
+# GT (not GTE) so the boundary deal isn't re-counted every run.
+NEW_HUBSPOT=0
+if [ -f "$HUBSPOT_CURSORS" ]; then
+  h_last_ms=$(grep -o '"last_ms"[[:space:]]*:[[:space:]]*"[^"]*"' "$HUBSPOT_CURSORS" | head -1 | sed -E 's/.*"([^"]*)"[[:space:]]*$/\1/')
+  if [ -z "$h_last_ms" ]; then
+    log "hubspot: no last_ms in cursor — leaving HubSpot to the daily floor run"
+  else
+    h_body=$(printf '{"filterGroups":[{"filters":[{"propertyName":"pipeline","operator":"EQ","value":"default"},{"propertyName":"hs_lastmodifieddate","operator":"GT","value":"%s"}]}],"limit":1,"properties":["dealname"]}' "$h_last_ms")
+    h_resp=$(curl -s --max-time 20 -X POST 'https://api.hubapi.com/crm/v3/objects/deals/search' \
+               -H 'Content-Type: application/json' --data "$h_body" 2>/dev/null)
+    if [ -z "$h_resp" ]; then
+      log "hubspot: empty response (gateway/network?) — counting 0"
+    elif printf '%s' "$h_resp" | grep -q '"status"[[:space:]]*:[[:space:]]*"error"'; then
+      h_err=$(printf '%s' "$h_resp" | grep -o '"message"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1)
+      log "hubspot: error ($h_err) — counting 0 (secret not set / scope / auth)"
+    else
+      NEW_HUBSPOT=$(printf '%s' "$h_resp" | grep -o '"total"[[:space:]]*:[[:space:]]*[0-9]\+' | head -1 | grep -o '[0-9]\+$')
+      [ -z "$NEW_HUBSPOT" ] && NEW_HUBSPOT=0
+    fi
+  fi
+else
+  log "no hubspot-cursor.json — leaving HubSpot to the daily floor run"
+fi
+
 # --- Decision ---
 WAKE=false
-if [ "$DIGEST" = "true" ] || [ "$NEW_FILES" -gt 0 ] || [ "$NEW_JIRA" -gt 0 ] || [ "$NEW_SLACK" -gt 0 ]; then
+if [ "$DIGEST" = "true" ] || [ "$NEW_FILES" -gt 0 ] || [ "$NEW_JIRA" -gt 0 ] || [ "$NEW_SLACK" -gt 0 ] || [ "$NEW_HUBSPOT" -gt 0 ]; then
   WAKE=true
 fi
 
 jd=$(IFS=,; echo "${jira_detail[*]:-}")
-log "decision: wake=$WAKE digest=$DIGEST sgt_h=$sgt_h new_files=$NEW_FILES new_jira=$NEW_JIRA new_slack=$NEW_SLACK"
-printf '{"wakeAgent":%s,"data":{"digest":%s,"sgt_hour":%s,"new_files":%s,"new_jira":%s,"jira_by_board":{%s},"new_slack":%s}}\n' \
-  "$WAKE" "$DIGEST" "$sgt_h" "$NEW_FILES" "$NEW_JIRA" "$jd" "$NEW_SLACK"
+log "decision: wake=$WAKE digest=$DIGEST sgt_h=$sgt_h new_files=$NEW_FILES new_jira=$NEW_JIRA new_slack=$NEW_SLACK new_hubspot=$NEW_HUBSPOT"
+printf '{"wakeAgent":%s,"data":{"digest":%s,"sgt_hour":%s,"new_files":%s,"new_jira":%s,"jira_by_board":{%s},"new_slack":%s,"new_hubspot":%s}}\n' \
+  "$WAKE" "$DIGEST" "$sgt_h" "$NEW_FILES" "$NEW_JIRA" "$jd" "$NEW_SLACK" "$NEW_HUBSPOT"
