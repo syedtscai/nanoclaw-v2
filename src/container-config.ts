@@ -43,6 +43,12 @@ export interface ContainerConfig {
   maxMessagesPerPrompt?: number;
   model?: string;
   effort?: string;
+  /**
+   * Per-group cold-resume transcript rotation cap (bytes). When set, overrides
+   * the container's CLAUDE_TRANSCRIPT_ROTATE_BYTES / 12MB default. Set low for
+   * stateless batch agents so they start a fresh SDK session each run.
+   */
+  transcriptRotateBytes?: number;
 }
 
 /** Build a `ContainerConfig` from a DB row + agent group identity. */
@@ -63,6 +69,7 @@ export function configFromDb(row: ContainerConfigRow, group: AgentGroup): Contai
     maxMessagesPerPrompt: row.max_messages_per_prompt ?? undefined,
     model: row.model ?? undefined,
     effort: row.effort ?? undefined,
+    transcriptRotateBytes: row.transcript_rotate_bytes ?? undefined,
   };
 }
 

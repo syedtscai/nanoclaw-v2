@@ -12,6 +12,44 @@ function log(msg: string): void {
   console.error(`[claude-provider] ${msg}`);
 }
 
+/**
+ * Append one per-query token/cost line to `<cwd>/usage.jsonl` (host-persisted in
+ * the group workspace). The SDK `result` message's `usage`/`total_cost_usd` are
+ * cumulative for the whole query — i.e. one line per Iris run / Zora turn — which
+ * is the granularity we want for per-group cost tracking. Best-effort: never
+ * throws into the event loop.
+ */
+function recordUsage(cwd: string, model: string | undefined, message: unknown): void {
+  try {
+    const m = message as {
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+      };
+      total_cost_usd?: number;
+      num_turns?: number;
+      modelUsage?: Record<string, unknown>;
+    };
+    if (!m.usage && m.total_cost_usd === undefined) return;
+    const u = m.usage ?? {};
+    const line = JSON.stringify({
+      ts: new Date().toISOString(),
+      model: model ?? (m.modelUsage ? Object.keys(m.modelUsage)[0] : null) ?? null,
+      input_tokens: u.input_tokens ?? 0,
+      output_tokens: u.output_tokens ?? 0,
+      cache_creation_input_tokens: u.cache_creation_input_tokens ?? 0,
+      cache_read_input_tokens: u.cache_read_input_tokens ?? 0,
+      total_cost_usd: m.total_cost_usd ?? null,
+      num_turns: m.num_turns ?? null,
+    });
+    fs.appendFileSync(path.join(cwd, 'usage.jsonl'), line + '\n');
+  } catch (err) {
+    log(`usage record failed: ${(err as Error).message}`);
+  }
+}
+
 // Deferred SDK builtins that either sidestep nanoclaw's own scheduling or
 // don't fit our async message-passing model (they're designed for Claude
 // Code's interactive UI and would hang here).
@@ -246,10 +284,50 @@ function createPreCompactHook(assistantName?: string): HookCallback {
 /**
  * Resume cost is dominated by transcript size. Past this many bytes a fresh
  * cold container can't reload the .jsonl before the host's 30-min idle ceiling
- * fires, so the session is dropped and started clean. Operator-overridable.
+ * fires, so the session is dropped and started clean.
+ *
+ * Precedence: per-group `override` (container.json `transcriptRotateBytes`) →
+ * `CLAUDE_TRANSCRIPT_ROTATE_BYTES` env → 12MB default. A stateless batch agent
+ * (e.g. Iris) sets a low per-group value so it starts a fresh session each run
+ * instead of re-reading an ever-growing transcript; conversational agents leave
+ * it unset and keep the generous default for session continuity.
  */
-function transcriptRotateBytes(): number {
+function transcriptRotateBytes(override?: number): number {
+  if (typeof override === 'number' && override > 0) return override;
   return Number(process.env.CLAUDE_TRANSCRIPT_ROTATE_BYTES) || 12 * 1024 * 1024;
+}
+
+/**
+ * How many `.jsonl.rotated-*` transcripts to retain per project dir. Rotation
+ * renames the heavy .jsonl aside rather than deleting it, so without a cap a
+ * batch agent that rotates every run accumulates them indefinitely. Keep a few
+ * recent ones for debugging; prune the rest.
+ */
+const ROTATED_TRANSCRIPT_KEEP = 3;
+
+/**
+ * Delete all but the most recent `keep` `.jsonl.rotated-<ts>` files in `dir`.
+ * Ordered by the `Date.now()` suffix embedded at rotation time (no stat calls).
+ * Best-effort: logs and continues on any error. Scoped to one project dir,
+ * which is per-group (each group mounts its own `.claude-shared/projects`), so
+ * this never touches another group's transcripts.
+ */
+function pruneRotatedTranscripts(dir: string, keep = ROTATED_TRANSCRIPT_KEEP): void {
+  try {
+    const rotated = fs
+      .readdirSync(dir)
+      .filter((f) => /\.jsonl\.rotated-\d+$/.test(f))
+      .sort((a, b) => {
+        const ta = Number(a.match(/\.rotated-(\d+)$/)?.[1] ?? 0);
+        const tb = Number(b.match(/\.rotated-(\d+)$/)?.[1] ?? 0);
+        return tb - ta; // newest first
+      });
+    for (const f of rotated.slice(keep)) {
+      fs.unlinkSync(path.join(dir, f));
+    }
+  } catch (err) {
+    log(`prune rotated transcripts failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -337,6 +415,7 @@ export class ClaudeProvider implements AgentProvider {
   private additionalDirectories?: string[];
   private model?: string;
   private effort?: string;
+  private rotateBytesOverride?: number;
 
   constructor(options: ProviderOptions = {}) {
     this.assistantName = options.assistantName;
@@ -344,6 +423,7 @@ export class ClaudeProvider implements AgentProvider {
     this.additionalDirectories = options.additionalDirectories;
     this.model = options.model;
     this.effort = options.effort;
+    this.rotateBytesOverride = options.transcriptRotateBytes;
     this.env = {
       ...(options.env ?? {}),
       CLAUDE_CODE_AUTO_COMPACT_WINDOW,
@@ -366,7 +446,7 @@ export class ClaudeProvider implements AgentProvider {
       return null;
     }
 
-    const maxBytes = transcriptRotateBytes();
+    const maxBytes = transcriptRotateBytes(this.rotateBytesOverride);
     const startMs = transcriptStartMs(transcriptPath);
     const ageMs = startMs === null ? 0 : Date.now() - startMs;
     const maxAgeMs = transcriptRotateAgeMs();
@@ -384,6 +464,7 @@ export class ClaudeProvider implements AgentProvider {
     archiveTranscriptFile(transcriptPath, continuation, this.assistantName);
     try {
       fs.renameSync(transcriptPath, `${transcriptPath}.rotated-${Date.now()}`);
+      pruneRotatedTranscripts(path.dirname(transcriptPath));
     } catch (err) {
       log(`Failed to move rotated transcript aside: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -427,6 +508,10 @@ export class ClaudeProvider implements AgentProvider {
     });
 
     let aborted = false;
+    // Captured for usage recording (translateEvents is a plain generator, so
+    // `this`/`input` must be closed over via locals).
+    const usageCwd = input.cwd;
+    const usageModel = this.model;
 
     async function* translateEvents(): AsyncGenerator<ProviderEvent> {
       let messageCount = 0;
@@ -440,6 +525,7 @@ export class ClaudeProvider implements AgentProvider {
         if (message.type === 'system' && message.subtype === 'init') {
           yield { type: 'init', continuation: message.session_id };
         } else if (message.type === 'result') {
+          recordUsage(usageCwd, usageModel, message);
           const text = 'result' in message ? (message as { result?: string }).result ?? null : null;
           yield { type: 'result', text };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'api_retry') {
