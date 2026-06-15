@@ -51,10 +51,17 @@ registerProviderContainerConfig('opencode', (ctx) => {
     NO_PROXY: mergeNoProxy(ctx.hostEnv.NO_PROXY, '127.0.0.1,localhost'),
     no_proxy: mergeNoProxy(ctx.hostEnv.no_proxy, '127.0.0.1,localhost'),
   };
-  for (const key of ['OPENCODE_PROVIDER', 'OPENCODE_MODEL', 'OPENCODE_SMALL_MODEL'] as const) {
-    const value = get(key);
-    if (value) env[key] = value;
-  }
+  const provider = get('OPENCODE_PROVIDER');
+  if (provider) env.OPENCODE_PROVIDER = provider;
+  // Per-group model override: if the group's container config sets a model, use
+  // it (for both main + small model — one model per group) so multiple opencode
+  // groups can run different models (e.g. Iris on flash, another group on pro)
+  // instead of all sharing the single global OPENCODE_MODEL. Falls back to the
+  // global .env value when the group has no model set.
+  const model = ctx.model || get('OPENCODE_MODEL');
+  if (model) env.OPENCODE_MODEL = model;
+  const smallModel = ctx.model || get('OPENCODE_SMALL_MODEL');
+  if (smallModel) env.OPENCODE_SMALL_MODEL = smallModel;
   // Zora-safe upstream baseURL: a dedicated OPENCODE_BASE_URL (never the shared
   // ANTHROPIC_BASE_URL) is forwarded into the opencode container only, where the
   // container-side provider reads it as ANTHROPIC_BASE_URL.

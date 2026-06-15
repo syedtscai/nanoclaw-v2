@@ -29,6 +29,12 @@ export interface ProviderContainerContext {
   agentGroupId: string;
   /** `process.env` at spawn time — pull passthrough values from here. */
   hostEnv: NodeJS.ProcessEnv;
+  /**
+   * Per-group configured model (`container_configs.model`), if set. Lets a
+   * provider pick a per-group model instead of one global env value — e.g. two
+   * opencode groups running different models.
+   */
+  model?: string;
 }
 
 export interface ProviderContainerContribution {
