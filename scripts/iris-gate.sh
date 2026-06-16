@@ -51,7 +51,7 @@ NEW_FILES=0
 for f in "$INBOX"/*; do
   [ -f "$f" ] || continue
   base=$(basename "$f")
-  if [ -f "$MANIFEST" ] && grep -qF "$base" "$MANIFEST"; then
+  if [ -f "$MANIFEST" ] && grep -qF -e "$base" -- "$MANIFEST"; then
     continue
   fi
   NEW_FILES=$((NEW_FILES + 1))
