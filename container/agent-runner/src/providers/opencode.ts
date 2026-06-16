@@ -1,4 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 import { createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
 
@@ -8,6 +10,42 @@ import { mcpServersToOpenCodeConfig } from './mcp-to-opencode.js';
 
 function log(msg: string): void {
   console.error(`[opencode-provider] ${msg}`);
+}
+
+interface TurnTokens {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/**
+ * Append one per-turn token/cost line to `<cwd>/usage.jsonl`, in the SAME schema
+ * the claude provider writes (see claude.ts `recordUsage`) so `scripts/usage-report.ts`
+ * aggregates OpenCode groups (Iris, Sage) alongside Claude groups (Zora) with no
+ * changes. One line per turn = one Iris/Sage run, summed across the turn's assistant
+ * messages (steps). Tokens are authoritative; `cost` comes from OpenCode's own
+ * accounting, which is 0 when a custom OpenRouter model has no registered pricing —
+ * we record `null` in that case (mirrors claude's absent-cost handling), and dollars
+ * are read from the OpenRouter dashboard. Best-effort: never throws into the loop.
+ */
+function recordUsage(cwd: string, model: string | null, tokens: TurnTokens, cost: number | null, numTurns: number | null): void {
+  try {
+    if (tokens.input === 0 && tokens.output === 0 && cost === null) return;
+    const line = JSON.stringify({
+      ts: new Date().toISOString(),
+      model: model ?? null,
+      input_tokens: tokens.input,
+      output_tokens: tokens.output,
+      cache_creation_input_tokens: tokens.cacheWrite,
+      cache_read_input_tokens: tokens.cacheRead,
+      total_cost_usd: cost,
+      num_turns: numTurns,
+    });
+    fs.appendFileSync(path.join(cwd, 'usage.jsonl'), line + '\n');
+  } catch (err) {
+    log(`usage record failed: ${(err as Error).message}`);
+  }
 }
 
 const SESSION_STATUS_RETRY_ERROR_AFTER = 3;
@@ -269,6 +307,8 @@ export class OpenCodeProvider implements AgentProvider {
 
     const self = this;
     const IDLE_TIMEOUT_MS = Number(process.env.OPENCODE_IDLE_TIMEOUT_MS) || 300_000;
+    // Per-group model label for usage.jsonl (matches the slug seen on the OpenRouter dashboard).
+    const usageModel = this.options.model ?? process.env.OPENCODE_MODEL ?? null;
 
     async function* gen(): AsyncGenerator<ProviderEvent> {
       let initYielded = false;
@@ -315,6 +355,10 @@ export class OpenCodeProvider implements AgentProvider {
 
         const partTextByMessageId = new Map<string, string>();
         const roleByMessageId = new Map<string, string>();
+        // Per-turn usage, keyed by assistant message id (latest update wins). Summed
+        // after the turn into one usage.jsonl line. Per-message (per-step) tokens,
+        // so a multi-step tool turn sums across its assistant messages.
+        const usageByMessageId = new Map<string, TurnTokens & { cost: number }>();
         let lastEventAt = Date.now();
         let eventTimedOut = false;
         const timeoutCheck = setInterval(() => {
@@ -346,9 +390,25 @@ export class OpenCodeProvider implements AgentProvider {
 
             switch (ev.type) {
               case 'message.updated': {
-                const info = ev.properties.info as { id?: string; role?: string } | undefined;
+                const info = ev.properties.info as
+                  | {
+                      id?: string;
+                      role?: string;
+                      cost?: number;
+                      tokens?: { input?: number; output?: number; cache?: { read?: number; write?: number } };
+                    }
+                  | undefined;
                 if (info?.id && info?.role) {
                   roleByMessageId.set(info.id, info.role);
+                  if (info.role === 'assistant' && info.tokens) {
+                    usageByMessageId.set(info.id, {
+                      input: info.tokens.input ?? 0,
+                      output: info.tokens.output ?? 0,
+                      cacheRead: info.tokens.cache?.read ?? 0,
+                      cacheWrite: info.tokens.cache?.write ?? 0,
+                      cost: typeof info.cost === 'number' ? info.cost : 0,
+                    });
+                  }
                 }
                 break;
               }
@@ -413,6 +473,18 @@ export class OpenCodeProvider implements AgentProvider {
         } finally {
           clearInterval(timeoutCheck);
         }
+
+        // One usage.jsonl line per turn (summed across this turn's assistant steps).
+        const turnTokens: TurnTokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+        let turnCost = 0;
+        for (const u of usageByMessageId.values()) {
+          turnTokens.input += u.input;
+          turnTokens.output += u.output;
+          turnTokens.cacheRead += u.cacheRead;
+          turnTokens.cacheWrite += u.cacheWrite;
+          turnCost += u.cost;
+        }
+        recordUsage(input.cwd, usageModel, turnTokens, turnCost > 0 ? turnCost : null, usageByMessageId.size || null);
 
         let resultText = '';
         for (const [msgId, role] of roleByMessageId) {

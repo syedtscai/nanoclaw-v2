@@ -1,6 +1,9 @@
 /**
  * Per-agent-group token/cost report — aggregates the `usage.jsonl` files that
- * the claude provider now appends per query (one line per Iris run / Zora turn).
+ * the claude AND opencode providers append per run/turn (one line per Iris/Sage
+ * run / Zora turn). OpenCode lines carry tokens but `total_cost_usd: null` (no
+ * registered pricing for custom OpenRouter models) — tokens are authoritative
+ * there; dollars come from the OpenRouter dashboard, split by model slug.
  *
  * Usage:  pnpm exec tsx scripts/usage-report.ts [days]
  *   days — how many days of per-day breakdown to show (default 7)
