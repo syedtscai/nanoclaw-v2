@@ -84,6 +84,27 @@ RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" && \
     install -m 0755 /root/.bun/bin/bun /usr/local/bin/bun && \
     rm -rf /root/.bun
 
+# ---- Document extraction: tesseract OCR + python for markitdown ----------------
+# markitdown turns office/PDF/HTML/CSV attachments into Markdown for the agents;
+# tesseract OCRs images (DeepSeek flash / Iris has no vision). See the
+# `doc-extract` container skill. Placed before the pnpm CLI block so a markitdown
+# bump doesn't invalidate the heavy Chromium/Bun layers.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-venv \
+        tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+# markitdown in an isolated venv (Debian pip is PEP-668 externally-managed). Pin
+# exact — pip is OUTSIDE pnpm's minimumReleaseAge gate, so bump deliberately
+# after checking the PyPI release date.
+ARG MARKITDOWN_VERSION=0.1.6
+RUN python3 -m venv /opt/markitdown && \
+    /opt/markitdown/bin/pip install --no-cache-dir \
+        "markitdown[pdf,docx,pptx,xlsx,xls]==${MARKITDOWN_VERSION}" && \
+    ln -s /opt/markitdown/bin/markitdown /usr/local/bin/markitdown
+
 # ---- agent-runner deps -------------------------------------------------------
 # Deps are cached independently of CLI versions. Source is NOT baked in —
 # it's provided by the shared RO mount at runtime.
