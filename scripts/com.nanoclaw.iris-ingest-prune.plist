@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.nanoclaw.iris-ingest-prune</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/pnpm</string>
+    <string>exec</string>
+    <string>tsx</string>
+    <string>scripts/iris-ingest-prune.ts</string>
+    <string>--archive</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ss-spare/nanoclaw-v2</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>/Users/ss-spare</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>5</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ss-spare/nanoclaw-v2/logs/iris-ingest-prune.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ss-spare/nanoclaw-v2/logs/iris-ingest-prune.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
