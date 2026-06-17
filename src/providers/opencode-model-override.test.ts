@@ -21,6 +21,8 @@ describe('opencode per-group model override', () => {
   const base = {
     sessionDir: path.join(os.tmpdir(), `oc-model-test-${process.pid}`),
     agentGroupId: 'g1',
+    groupDir: path.join(os.tmpdir(), `oc-model-test-group-${process.pid}`),
+    selectedSkills: [],
     hostEnv: {
       OPENCODE_PROVIDER: 'openrouter',
       OPENCODE_MODEL: 'env-model',
