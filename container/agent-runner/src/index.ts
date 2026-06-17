@@ -27,6 +27,7 @@ import { fileURLToPath } from 'url';
 
 import { loadConfig } from './config.js';
 import { buildSystemPromptAddendum } from './destinations.js';
+import { ensureMemoryScaffold } from './memory-scaffold.js';
 // Providers barrel — each enabled provider self-registers on import.
 // Provider skills append imports to providers/index.ts.
 import './providers/index.js';
@@ -95,6 +96,12 @@ async function main(): Promise<void> {
     effort: config.effort,
     transcriptRotateBytes: config.transcriptRotateBytes,
   });
+
+  // Providers that lack native memory opt in via `usesMemoryScaffold`; for them
+  // the runner creates a persistent memory/ tree in its host-backed workspace at
+  // boot (idempotent). Default off — the trunk default (Claude) omits the flag
+  // and keeps its native memory untouched.
+  if (provider.usesMemoryScaffold) ensureMemoryScaffold();
 
   await runPollLoop({
     provider,
