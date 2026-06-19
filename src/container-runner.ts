@@ -16,6 +16,7 @@ import {
   DATA_DIR,
   GROUPS_DIR,
   MNEMON_DATA_DIR,
+  WIKI_DATA_DIR,
   ONECLI_API_KEY,
   ONECLI_URL,
   TIMEZONE,
@@ -360,6 +361,14 @@ export function buildMounts(
   if (MNEMON_DATA_DIR) {
     const expandedPath = MNEMON_DATA_DIR.replace(/^~/, process.env.HOME || '');
     mounts.push({ hostPath: expandedPath, containerPath: '/home/node/.mnemon', readonly: false });
+  }
+
+  // Wiki shared knowledge base — if WIKI_DATA_DIR is set, mount it RW to /workspace/wiki.
+  // Derived narrative layer on top of mnemon (Karpathy LLM Wiki pattern); see the
+  // `wiki` container skill. Mounted to every container; only Sage/Zora use it.
+  if (WIKI_DATA_DIR) {
+    const expandedPath = WIKI_DATA_DIR.replace(/^~/, process.env.HOME || '');
+    mounts.push({ hostPath: expandedPath, containerPath: '/workspace/wiki', readonly: false });
   }
 
   // Provider-contributed mounts (e.g. opencode-xdg)

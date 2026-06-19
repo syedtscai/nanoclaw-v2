@@ -13,10 +13,12 @@ const envConfig = readEnvFile([
   'ONECLI_API_KEY',
   'TZ',
   'MNEMON_DATA_DIR',
+  'WIKI_DATA_DIR',
 ]);
 
 export const ASSISTANT_NAME = process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
 export const MNEMON_DATA_DIR = process.env.MNEMON_DATA_DIR || envConfig.MNEMON_DATA_DIR;
+export const WIKI_DATA_DIR = process.env.WIKI_DATA_DIR || envConfig.WIKI_DATA_DIR;
 export const ASSISTANT_HAS_OWN_NUMBER =
   (process.env.ASSISTANT_HAS_OWN_NUMBER || envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
 
