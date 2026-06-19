@@ -446,7 +446,12 @@ function ensureNoProxyHost(args: string[], host: string): void {
     for (let i = 0; i < args.length - 1; i++) {
       if (args[i] === '-e' && args[i + 1].startsWith(`${name}=`)) {
         const val = args[i + 1].slice(name.length + 1);
-        const parts = val ? val.split(',').map((s) => s.trim()).filter(Boolean) : [];
+        const parts = val
+          ? val
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
         if (!parts.includes(host)) {
           parts.push(host);
           args[i + 1] = `${name}=${parts.join(',')}`;
