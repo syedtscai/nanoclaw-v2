@@ -297,6 +297,17 @@ function collectUsers() {
   });
 }
 
+/**
+ * Session-root directories for known agent groups. Group IDs are not always
+ * `ag-`-prefixed (UUID-style IDs exist), so filter by DB membership rather than
+ * a name prefix — otherwise those groups vanish from every collector.
+ */
+function agentGroupSessionDirs(sessionsDir: string): string[] {
+  if (!fs.existsSync(sessionsDir)) return [];
+  const groupIds = new Set(getAllAgentGroups().map((g) => g.id));
+  return fs.readdirSync(sessionsDir).filter((d) => groupIds.has(d));
+}
+
 function collectTokens() {
   const sessionsDir = path.join(DATA_DIR, 'v2-sessions');
   const allEntries: Array<{
@@ -311,7 +322,7 @@ function collectTokens() {
   const nameMap = new Map(agentGroups.map((g) => [g.id, g.name]));
 
   if (fs.existsSync(sessionsDir)) {
-    for (const agDir of fs.readdirSync(sessionsDir).filter((d) => d.startsWith('ag-'))) {
+    for (const agDir of agentGroupSessionDirs(sessionsDir)) {
       const entries = scanJsonlTokens(path.join(sessionsDir, agDir));
       allEntries.push(...entries.map((e) => ({ ...e, agentGroupId: agDir })));
     }
@@ -432,7 +443,7 @@ function collectContextWindows() {
   const agentGroups = getAllAgentGroups();
   const nameMap = new Map(agentGroups.map((g) => [g.id, g.name]));
 
-  for (const agDir of fs.readdirSync(sessionsDir).filter((d) => d.startsWith('ag-'))) {
+  for (const agDir of agentGroupSessionDirs(sessionsDir)) {
     const claudeDir = path.join(sessionsDir, agDir, '.claude-shared', 'projects');
     if (!fs.existsSync(claudeDir)) continue;
 
@@ -511,7 +522,7 @@ function collectActivity() {
   const cutoff = new Date(now - 86400000).toISOString();
 
   try {
-    for (const agDir of fs.readdirSync(sessionsDir).filter((d) => d.startsWith('ag-'))) {
+    for (const agDir of agentGroupSessionDirs(sessionsDir)) {
       const agPath = path.join(sessionsDir, agDir);
       for (const sessDir of fs.readdirSync(agPath).filter((d) => d.startsWith('sess-'))) {
         for (const [dbName, direction] of [
@@ -558,7 +569,7 @@ function collectMessages() {
   const limit = 50;
 
   try {
-    for (const agDir of fs.readdirSync(sessionsDir).filter((d) => d.startsWith('ag-'))) {
+    for (const agDir of agentGroupSessionDirs(sessionsDir)) {
       const agPath = path.join(sessionsDir, agDir);
       for (const sessDir of fs.readdirSync(agPath).filter((d) => d.startsWith('sess-'))) {
         const inbound: unknown[] = [];
