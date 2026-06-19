@@ -53,10 +53,14 @@ if (!ag) {
 const { session } = resolveSession(ag.id, null, null, 'agent-shared');
 const db = openInboundDb(ag.id, session.id);
 
-// Idempotent: retire any existing live Sage reconciliation task(s) before inserting.
+// Idempotent + scoped: retire only existing live *reconciliation* task series
+// before inserting — never the wiki series (owned by scripts/sage-wiki-schedule.ts,
+// which scopes its own cancel likewise). Matches the reconciliation prompt prefix
+// ("Weekly renewal-reconciliation run.").
 const cancelled = db
   .prepare(
-    "UPDATE messages_in SET status = 'completed', recurrence = NULL WHERE kind = 'task' AND status IN ('pending', 'paused')",
+    "UPDATE messages_in SET status = 'completed', recurrence = NULL " +
+      "WHERE kind = 'task' AND status IN ('pending', 'paused') AND content LIKE '%renewal-reconciliation run%'",
   )
   .run();
 if (cancelled.changes > 0) {
