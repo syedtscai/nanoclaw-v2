@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nanoclaw.statusbar</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/ss-spare/nanoclaw-v2/dist/statusbar</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/ss-spare</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/ss-spare/nanoclaw-v2/logs/statusbar.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/ss-spare/nanoclaw-v2/logs/statusbar.error.log</string>
+</dict>
+</plist>
