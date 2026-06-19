@@ -99,8 +99,13 @@ if (/repository .* does not exist|unable to open config|no repository/i.test(pro
   restic(['init']);
 }
 
-// --- 1. consistent SQLite snapshots into a temp staging dir ------------------
-const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'nanoclaw-restic-'));
+// --- 1. consistent SQLite snapshots into a STABLE staging dir ----------------
+// Fixed path (not mkdtemp) so the DB snapshots land at the same location in
+// every snapshot — predictable to restore. Wiped at start and end of each run,
+// so no plaintext DB copy is left between runs.
+const stage = path.join(HOME, '.cache', 'nanoclaw-restic-stage');
+fs.rmSync(stage, { recursive: true, force: true });
+fs.mkdirSync(stage, { recursive: true });
 const mnemonDir = expandHome(process.env.MNEMON_DATA_DIR || '~/nanoclaw-memory/.mnemon');
 const dbTargets: Array<[string, string]> = [
   [path.join(mnemonDir, 'data', 'default', 'mnemon.db'), path.join(stage, 'mnemon.db')],
