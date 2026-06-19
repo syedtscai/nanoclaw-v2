@@ -15,6 +15,7 @@ import { runMigrations } from './db/migrations/index.js';
 import { ensureContainerRuntimeRunning, cleanupOrphans } from './container-runtime.js';
 import { startActiveDeliveryPoll, startSweepDeliveryPoll, setDeliveryAdapter, stopDeliveryPolls } from './delivery.js';
 import { startHostSweep, stopHostSweep } from './host-sweep.js';
+import { startUsageMonitor, stopUsageMonitor } from './usage-monitor/index.js';
 import { routeInbound } from './router.js';
 import { log } from './log.js';
 import { enforceUpgradeTripwire } from './upgrade-state.js';
@@ -175,6 +176,9 @@ async function main(): Promise<void> {
   const { startDashboard } = await import('./dashboard-pusher.js');
   await startDashboard();
 
+  // Usage monitor (observe-only): records cross-provider per-message usage.
+  startUsageMonitor();
+
   log.info('NanoClaw running');
 }
 
@@ -190,6 +194,7 @@ async function shutdown(signal: string): Promise<void> {
   }
   stopDeliveryPolls();
   stopHostSweep();
+  stopUsageMonitor();
   await stopCliServer();
   try {
     await teardownChannelAdapters();
