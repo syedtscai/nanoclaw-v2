@@ -1,8 +1,8 @@
 import type Database from 'better-sqlite3';
 import type { Migration } from './index.js';
 
-export const migration018: Migration = {
-  version: 18,
+export const moduleUsageEvents: Migration = {
+  version: 20,
   name: 'usage-events',
   up(db: Database.Database) {
     // Durable, cross-provider usage ledger. One row per agent RUN, fed from the

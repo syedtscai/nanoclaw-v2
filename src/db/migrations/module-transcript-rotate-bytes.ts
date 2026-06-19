@@ -1,8 +1,8 @@
 import type Database from 'better-sqlite3';
 import type { Migration } from './index.js';
 
-export const migration017: Migration = {
-  version: 17,
+export const moduleTranscriptRotateBytes: Migration = {
+  version: 19,
   name: 'transcript-rotate-bytes',
   up(db: Database.Database) {
     // Per-group override for the Claude transcript cold-resume rotation cap

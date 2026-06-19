@@ -5,7 +5,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { migration018 } from '../db/migrations/018-usage-events.js';
+import { moduleUsageEvents } from '../db/migrations/module-usage-events.js';
 
 const FIXTURE_DIR = path.join(os.tmpdir(), 'nanoclaw-usage-test');
 
@@ -71,7 +71,7 @@ describe('collectUsage', () => {
     fs.mkdirSync(path.join(FIXTURE_DIR, 'iris'), { recursive: true });
     fs.writeFileSync(path.join(FIXTURE_DIR, 'iris', 'usage.jsonl'), opencodeLine + '\n' + claudeLine + '\n');
     db = new Database(':memory:');
-    migration018.up(db);
+    moduleUsageEvents.up(db);
   });
 
   afterEach(() => {
