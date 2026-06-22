@@ -106,6 +106,30 @@ function mcpAllowPattern(serverName: string): string {
   return `mcp__${serverName.replace(/[^a-zA-Z0-9_-]/g, '_')}__*`;
 }
 
+// Build the allowedTools entries a registered MCP server contributes. With a
+// per-server `allowedTools` list, emit one explicit `mcp__<server>__<tool>`
+// entry per allowed tool (the SDK's allowedTools filter then both gates calls
+// and drops unlisted tools' schemas from context). Without it, fall back to the
+// `mcp__<server>__*` wildcard so every tool the server exposes is reachable.
+function mcpAllowEntries(serverName: string, cfg: McpServerConfig): string[] {
+  if (cfg.allowedTools && cfg.allowedTools.length > 0) {
+    const prefix = `mcp__${serverName.replace(/[^a-zA-Z0-9_-]/g, '_')}__`;
+    return cfg.allowedTools.map((tool) => `${prefix}${tool}`);
+  }
+  return [mcpAllowPattern(serverName)];
+}
+
+// `allowedTools` is a NanoClaw-only field used to derive the allow-patterns
+// above; the SDK's stdio mcpServers config only knows command/args/env, so
+// strip it before handing the map over.
+function toSdkMcpServers(
+  servers: Record<string, McpServerConfig>,
+): Record<string, { command: string; args: string[]; env: Record<string, string> }> {
+  return Object.fromEntries(
+    Object.entries(servers).map(([name, { command, args, env }]) => [name, { command, args, env }]),
+  );
+}
+
 interface SDKUserMessage {
   type: 'user';
   message: { role: 'user'; content: string };
@@ -487,7 +511,7 @@ export class ClaudeProvider implements AgentProvider {
         systemPrompt: instructions ? { type: 'preset' as const, preset: 'claude_code' as const, append: instructions } : undefined,
         allowedTools: [
           ...TOOL_ALLOWLIST,
-          ...Object.keys(this.mcpServers).map(mcpAllowPattern),
+          ...Object.entries(this.mcpServers).flatMap(([name, cfg]) => mcpAllowEntries(name, cfg)),
         ],
         disallowedTools: SDK_DISALLOWED_TOOLS,
         env: this.env,
@@ -497,7 +521,7 @@ export class ClaudeProvider implements AgentProvider {
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         settingSources: ['project', 'user', 'local'],
-        mcpServers: this.mcpServers,
+        mcpServers: toSdkMcpServers(this.mcpServers),
         hooks: {
           PreToolUse: [{ hooks: [preToolUseHook] }],
           PostToolUse: [{ hooks: [postToolUseHook] }],

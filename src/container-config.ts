@@ -21,6 +21,13 @@ export interface McpServerConfig {
   args?: string[];
   env?: Record<string, string>;
   instructions?: string;
+  /**
+   * Optional per-server tool allowlist, materialized through to container.json.
+   * When set, the container exposes only these tools (as explicit
+   * `mcp__<server>__<tool>` allow entries) instead of the `mcp__<server>__*`
+   * wildcard — pinning a write-capable server to a read-only subset.
+   */
+  allowedTools?: string[];
 }
 
 export interface AdditionalMountConfig {

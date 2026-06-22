@@ -23,6 +23,7 @@ ARG INSTALL_CJK_FONTS=false
 # runtime) is pinned here because it installs from a different source.
 ARG BUN_VERSION=1.3.12
 ARG GMAIL_MCP_VERSION=1.1.11
+ARG GDRIVE_MCP_VERSION=2.2.0
 ARG OPENCODE_VERSION=1.4.17
 
 # ---- System dependencies -----------------------------------------------------
@@ -151,6 +152,15 @@ RUN --mount=type=cache,target=/root/.cache/pnpm \
     pnpm install -g \
         "@gongrzhe/server-gmail-autoauth-mcp@${GMAIL_MCP_VERSION}" \
         "zod-to-json-schema@3.22.5"
+
+# Google Drive MCP server (read-only Docs/Sheets/Slides/files for the hub agent).
+# Unlike gmail-mcp this package pins zod@^3.25 directly and has no zod-to-json-schema
+# dep, so no transitive pin is needed. Bin is `google-drive-mcp`. Read-only is enforced
+# by the OneCLI google-drive connection's scopes + the agent's playbook boundary, not by
+# this package (it ships write/edit tools too).
+RUN --mount=type=cache,target=/root/.cache/pnpm \
+    pnpm install -g \
+        "@piotr-agier/google-drive-mcp@${GDRIVE_MCP_VERSION}"
 
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.

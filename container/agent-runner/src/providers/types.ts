@@ -113,6 +113,14 @@ export interface McpServerConfig {
   command: string;
   args: string[];
   env: Record<string, string>;
+  /**
+   * Optional per-server tool allowlist. When set, only these tool names are
+   * exposed to the agent (as explicit `mcp__<server>__<tool>` allow entries)
+   * instead of the `mcp__<server>__*` wildcard — both filtering what the agent
+   * may call AND keeping unlisted tools' schemas out of context. Used to pin a
+   * write-capable server (e.g. google-drive-mcp) to its read-only subset.
+   */
+  allowedTools?: string[];
 }
 
 export interface AgentQuery {
