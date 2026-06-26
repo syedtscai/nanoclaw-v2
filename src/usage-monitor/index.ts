@@ -11,16 +11,19 @@
  */
 import { getDb } from '../db/connection.js';
 import { log } from '../log.js';
+import { checkSoftAlerts } from './alerts.js';
 import { collectUsage } from './collect.js';
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 
 let timer: ReturnType<typeof setInterval> | undefined;
 
-function runOnce(): void {
+async function runOnce(): Promise<void> {
   try {
     const { scanned, inserted } = collectUsage(getDb());
     if (inserted > 0) log.info('Usage monitor recorded events', { inserted, scanned });
+    // Soft-alert tier: notify only, never pause.
+    await checkSoftAlerts(getDb());
   } catch (err) {
     log.warn('Usage monitor sweep failed', { err });
   }
@@ -28,8 +31,8 @@ function runOnce(): void {
 
 export function startUsageMonitor(intervalMs: number = DEFAULT_INTERVAL_MS): void {
   if (timer) return;
-  runOnce(); // backfill immediately on boot
-  timer = setInterval(runOnce, intervalMs);
+  void runOnce(); // backfill immediately on boot
+  timer = setInterval(() => void runOnce(), intervalMs);
   if (typeof timer.unref === 'function') timer.unref();
   log.info('Usage monitor started', { intervalMs });
 }
