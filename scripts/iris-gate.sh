@@ -9,6 +9,8 @@
 #   - there are new/updated Jira issues since the per-board cursor.
 #   - there are new Slack messages since the cursor ts (one search.messages call).
 #   - there are new/updated HubSpot deals (TSC New Deals pipeline) since the cursor.
+#   - there are new/updated Confluence pages in watched spaces (CSM, TECH) since
+#     the cursor (one cheap CQL search).
 # Otherwise wakeAgent=false → the task is marked completed, recurrence re-arms
 # the next 3-hourly occurrence, and not a single token is spent.
 #
@@ -187,13 +189,53 @@ else
   log "no hubspot-cursor.json — leaving HubSpot to the daily floor run"
 fi
 
+# --- New Confluence pages in watched spaces modified since the cursor ---
+# One cheap CQL search: pages in CSM/TECH whose lastmodified >= the cursor. Auth
+# (Basic Atlassian token) is injected by the OneCLI gateway for
+# tsclabs.atlassian.net/* — never put a token here. CQL wants "yyyy/MM/dd HH:mm"
+# (slashes, minute granularity, server tz), NOT ISO-8601 — convert like Jira.
+# GTE is fine: Iris dedups by page id+version, so a boundary re-count only causes
+# a harmless extra wake. Dormant-safe: a 4xx/empty response counts as 0 new.
+CONFLUENCE_CURSORS="$WS/confluence-cursor.json"
+CONFLUENCE_SPACES='CSM,TECH'      # watched spaces (Customer Management, Technology)
+NEW_CONFLUENCE=0
+if [ -f "$CONFLUENCE_CURSORS" ]; then
+  c_last=$(grep -o '"last"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFLUENCE_CURSORS" | head -1 | sed -E 's/.*"([^"]*)"[[:space:]]*$/\1/')
+  if [ -z "$c_last" ]; then
+    log "confluence: no last in cursor — leaving Confluence to the daily floor run"
+  else
+    # ISO "2026-06-29T10:00:00Z" → CQL "2026/06/29 10:00"; fall back to date-only.
+    if [[ "$c_last" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}:[0-9]{2}) ]]; then
+      c_cql="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/${BASH_REMATCH[3]} ${BASH_REMATCH[4]}"
+    else
+      c_cql="${c_last%%T*}"; c_cql="${c_cql//-//}"
+    fi
+    c_query="space in ($CONFLUENCE_SPACES) AND type = page AND lastmodified >= \"$c_cql\""
+    c_resp=$(curl -s -G --max-time 20 'https://tsclabs.atlassian.net/wiki/rest/api/search' \
+               --data-urlencode "cql=$c_query" \
+               --data-urlencode 'limit=1' 2>/dev/null)
+    if [ -z "$c_resp" ]; then
+      log "confluence: empty response (gateway/network?) — counting 0"
+    elif printf '%s' "$c_resp" | grep -qE '"statusCode"[[:space:]]*:[[:space:]]*4'; then
+      c_err=$(printf '%s' "$c_resp" | grep -o '"message"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1)
+      log "confluence: error ($c_err) — counting 0 (auth/scope/cql)"
+    else
+      NEW_CONFLUENCE=$(printf '%s' "$c_resp" | grep -o '"totalSize"[[:space:]]*:[[:space:]]*[0-9]\+' | head -1 | grep -o '[0-9]\+$')
+      [ -z "$NEW_CONFLUENCE" ] && NEW_CONFLUENCE=$(printf '%s' "$c_resp" | grep -o '"size"[[:space:]]*:[[:space:]]*[0-9]\+' | head -1 | grep -o '[0-9]\+$')
+      [ -z "$NEW_CONFLUENCE" ] && NEW_CONFLUENCE=0
+    fi
+  fi
+else
+  log "no confluence-cursor.json — leaving Confluence to the daily floor run"
+fi
+
 # --- Decision ---
 WAKE=false
-if [ "$DIGEST" = "true" ] || [ "$NEW_FILES" -gt 0 ] || [ "$NEW_JIRA" -gt 0 ] || [ "$NEW_SLACK" -gt 0 ] || [ "$NEW_HUBSPOT" -gt 0 ]; then
+if [ "$DIGEST" = "true" ] || [ "$NEW_FILES" -gt 0 ] || [ "$NEW_JIRA" -gt 0 ] || [ "$NEW_SLACK" -gt 0 ] || [ "$NEW_HUBSPOT" -gt 0 ] || [ "$NEW_CONFLUENCE" -gt 0 ]; then
   WAKE=true
 fi
 
 jd=$(IFS=,; echo "${jira_detail[*]:-}")
-log "decision: wake=$WAKE digest=$DIGEST sgt_h=$sgt_h new_files=$NEW_FILES new_jira=$NEW_JIRA new_slack=$NEW_SLACK new_hubspot=$NEW_HUBSPOT"
-printf '{"wakeAgent":%s,"data":{"digest":%s,"sgt_hour":%s,"new_files":%s,"new_jira":%s,"jira_by_board":{%s},"new_slack":%s,"new_hubspot":%s}}\n' \
-  "$WAKE" "$DIGEST" "$sgt_h" "$NEW_FILES" "$NEW_JIRA" "$jd" "$NEW_SLACK" "$NEW_HUBSPOT"
+log "decision: wake=$WAKE digest=$DIGEST sgt_h=$sgt_h new_files=$NEW_FILES new_jira=$NEW_JIRA new_slack=$NEW_SLACK new_hubspot=$NEW_HUBSPOT new_confluence=$NEW_CONFLUENCE"
+printf '{"wakeAgent":%s,"data":{"digest":%s,"sgt_hour":%s,"new_files":%s,"new_jira":%s,"jira_by_board":{%s},"new_slack":%s,"new_hubspot":%s,"new_confluence":%s}}\n' \
+  "$WAKE" "$DIGEST" "$sgt_h" "$NEW_FILES" "$NEW_JIRA" "$jd" "$NEW_SLACK" "$NEW_HUBSPOT" "$NEW_CONFLUENCE"
