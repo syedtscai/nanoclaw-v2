@@ -4,6 +4,7 @@
  * Usage:
  *   pnpm exec tsx scripts/sage-trigger.ts                          # renewal reconciliation (default)
  *   pnpm exec tsx scripts/sage-trigger.ts --health                 # account-health synthesis (mnemon-only)
+ *   pnpm exec tsx scripts/sage-trigger.ts --friction               # team-dynamics friction judging
  *   pnpm exec tsx scripts/sage-trigger.ts --wiki-update --topic "OCP Global"
  *   pnpm exec tsx scripts/sage-trigger.ts --wiki-all               # refresh all roster accounts + key people (heavy)
  *   pnpm exec tsx scripts/sage-trigger.ts --wiki-lint              # wiki health check
@@ -22,6 +23,7 @@ import { getAgentGroupByFolder } from '../src/db/agent-groups.js';
 import { resolveSession, writeSessionMessage } from '../src/session-manager.js';
 import { wikiUpdatePrompt, WIKI_ALL_PROMPT, WIKI_LINT_PROMPT } from './sage-wiki-prompts.js';
 import { HEALTH_PROMPT } from './sage-health-prompts.js';
+import { FRICTION_PROMPT } from './sage-friction-prompts.js';
 
 // ---- arg parsing -----------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -33,9 +35,10 @@ function value(name: string): string | undefined {
   return i >= 0 ? argv[i + 1] : undefined;
 }
 
-type Mode = 'reconcile' | 'health' | 'wiki-update' | 'wiki-all' | 'wiki-lint';
+type Mode = 'reconcile' | 'health' | 'friction' | 'wiki-update' | 'wiki-all' | 'wiki-lint';
 let mode: Mode = 'reconcile';
 if (flag('health')) mode = 'health';
+else if (flag('friction')) mode = 'friction';
 else if (flag('wiki-update')) mode = 'wiki-update';
 else if (flag('wiki-all')) mode = 'wiki-all';
 else if (flag('wiki-lint')) mode = 'wiki-lint';
@@ -60,6 +63,7 @@ const RECONCILE_PROMPT =
 const PROMPTS: Record<Mode, string> = {
   reconcile: RECONCILE_PROMPT,
   health: HEALTH_PROMPT,
+  friction: FRICTION_PROMPT,
   'wiki-update': topic ? wikiUpdatePrompt(topic) : '',
   'wiki-all': WIKI_ALL_PROMPT,
   'wiki-lint': WIKI_LINT_PROMPT,
