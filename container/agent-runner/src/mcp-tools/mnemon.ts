@@ -46,8 +46,41 @@ function err(text: string) {
   return { content: [{ type: 'text' as const, text: `Error: ${text}` }], isError: true };
 }
 
-/** Run the mnemon binary with a literal argv array — never via a shell. */
+/**
+ * Run mnemon with a literal argv array — never via a shell.
+ *
+ * Two transports, same argv contract:
+ *  - MNEMON_DAEMON_URL set (single-writer mode): POST the argv to the host's
+ *    mnemon daemon, which owns the shared DB and serializes all invocations.
+ *    The daemon URL bypasses the OneCLI gateway proxy (host is on NO_PROXY).
+ *    No local fallback — if the daemon is down we fail LOUDLY rather than
+ *    silently writing to an empty local store.
+ *  - Otherwise (legacy direct-mount mode): execFile the local binary.
+ */
 async function runMnemon(argv: string[]) {
+  const daemonUrl = process.env.MNEMON_DAEMON_URL;
+  if (daemonUrl) {
+    try {
+      const res = await fetch(`${daemonUrl.replace(/\/$/, '')}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ argv }),
+        signal: AbortSignal.timeout(EXEC_TIMEOUT_MS + 5000),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        return err(`mnemon daemon rejected request (HTTP ${res.status}): ${body.slice(0, 300)}`);
+      }
+      const { code, stdout, stderr } = (await res.json()) as { code: number; stdout: string; stderr: string };
+      const combined = [stdout?.trim(), stderr?.trim()].filter(Boolean).join('\n');
+      if (code !== 0) return err(`mnemon ${argv[0] ?? ''} failed (exit ${code}): ${combined || '(no output)'}`);
+      return ok(combined);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return err(`mnemon daemon unreachable at ${daemonUrl}: ${msg} — memory ops are down; report this, do not retry into a local store`);
+    }
+  }
+
   try {
     const bin = process.env.MNEMON_BIN || 'mnemon';
     const { stdout, stderr } = await execFileAsync(bin, argv, {
@@ -190,8 +223,8 @@ export const mnemonRun: McpToolDefinition = {
   },
 };
 
-if (process.env.MNEMON_DATA_DIR) {
+if (process.env.MNEMON_DAEMON_URL || process.env.MNEMON_DATA_DIR) {
   registerTools([mnemonRemember, mnemonRecall, mnemonForget, mnemonRun]);
 } else {
-  log('mnemon tools not registered (MNEMON_DATA_DIR unset — mnemon not installed)');
+  log('mnemon tools not registered (MNEMON_DAEMON_URL and MNEMON_DATA_DIR unset — mnemon not installed)');
 }

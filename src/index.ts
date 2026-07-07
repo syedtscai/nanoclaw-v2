@@ -165,7 +165,15 @@ async function main(): Promise<void> {
   startSweepDeliveryPoll();
   log.info('Delivery polls started');
 
-  // 6. Start host sweep
+  // 6. mnemon single-writer daemon (no-op unless MNEMON_DAEMON=true) — must be
+  // up before any container spawn so agents' MNEMON_DAEMON_URL has a listener.
+  const { ensureMnemonDaemon, mnemonDaemonEnabled } = await import('./mnemon-daemon.js');
+  if (mnemonDaemonEnabled()) {
+    const up = await ensureMnemonDaemon();
+    if (!up) log.error('mnemon daemon failed to start — agent mnemon tools will error until it is up');
+  }
+
+  // 7. Start host sweep
   startHostSweep();
   log.info('Host sweep started');
 

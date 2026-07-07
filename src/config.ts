@@ -13,11 +13,15 @@ const envConfig = readEnvFile([
   'ONECLI_API_KEY',
   'TZ',
   'MNEMON_DATA_DIR',
+  'MNEMON_DAEMON',
   'WIKI_DATA_DIR',
 ]);
 
 export const ASSISTANT_NAME = process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
 export const MNEMON_DATA_DIR = process.env.MNEMON_DATA_DIR || envConfig.MNEMON_DATA_DIR;
+// Single-writer daemon: when true, only the daemon container mounts the mnemon
+// data dir; agent containers get MNEMON_DAEMON_URL instead (src/mnemon-daemon.ts).
+export const MNEMON_DAEMON = (process.env.MNEMON_DAEMON || envConfig.MNEMON_DAEMON) === 'true';
 export const WIKI_DATA_DIR = process.env.WIKI_DATA_DIR || envConfig.WIKI_DATA_DIR;
 export const ASSISTANT_HAS_OWN_NUMBER =
   (process.env.ASSISTANT_HAS_OWN_NUMBER || envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';

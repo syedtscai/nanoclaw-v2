@@ -26,6 +26,7 @@ import { nativeCredentialEnvArgs, nativeCredentialsEnabled } from './native-cred
 import { getContainerConfig } from './db/container-configs.js';
 import { updateContainerConfigScalars } from './db/container-configs.js';
 import { CONTAINER_RUNTIME_BIN, hostGatewayArgs, readonlyMountArgs, stopContainer } from './container-runtime.js';
+import { MNEMON_DAEMON_CONTAINER_URL, mnemonDaemonEnabled } from './mnemon-daemon.js';
 import { EGRESS_NETWORK, egressNetworkArgs, ensureEgressNetwork } from './egress-lockdown.js';
 import { composeGroupClaudeMd } from './claude-md-compose.js';
 import { getAgentGroup } from './db/agent-groups.js';
@@ -357,8 +358,12 @@ export function buildMounts(
     mounts.push(...validated);
   }
 
-  // Mnemon shared memory — if MNEMON_DATA_DIR is set, mount it to /home/node/.mnemon
-  if (MNEMON_DATA_DIR) {
+  // Mnemon shared memory — if MNEMON_DATA_DIR is set, mount it to /home/node/.mnemon.
+  // EXCEPT in single-writer daemon mode: then only the daemon container mounts the
+  // data dir, and agents reach mnemon over HTTP via MNEMON_DAEMON_URL (pushed in
+  // buildContainerArgs). Mounting here as well would reintroduce the multi-writer
+  // WAL-over-virtiofs corruption vector the daemon exists to remove.
+  if (MNEMON_DATA_DIR && !mnemonDaemonEnabled()) {
     const expandedPath = MNEMON_DATA_DIR.replace(/^~/, process.env.HOME || '');
     mounts.push({ hostPath: expandedPath, containerPath: '/home/node/.mnemon', readonly: false });
   }
@@ -556,6 +561,16 @@ async function buildContainerArgs(
     // back to CLAUDE_CODE_OAUTH_TOKEN (subscription auth).
     args.push('-e', 'ANTHROPIC_API_KEY=');
     log.info('Anthropic subscription path applied (NO_PROXY bypass + cleared placeholder key)', { containerName });
+  }
+
+  // mnemon single-writer daemon: route the container's mnemon_* MCP tools to
+  // the daemon over HTTP instead of a direct DB mount (which buildMounts skips
+  // in this mode). host.docker.internal must bypass the OneCLI gateway proxy —
+  // the daemon is local plumbing, not a credentialed API. Runs AFTER the
+  // gateway args so ensureNoProxyHost extends the gateway's NO_PROXY.
+  if (mnemonDaemonEnabled()) {
+    args.push('-e', `MNEMON_DAEMON_URL=${MNEMON_DAEMON_CONTAINER_URL}`);
+    ensureNoProxyHost(args, 'host.docker.internal');
   }
 
   // Override entrypoint: run v2 entry point directly via Bun (no tsc, no stdin).
