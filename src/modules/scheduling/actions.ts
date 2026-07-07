@@ -23,9 +23,21 @@ export async function handleScheduleTask(
 ): Promise<void> {
   const taskId = content.taskId as string;
   const prompt = content.prompt as string;
-  const script = content.script as string | null;
   const processAfter = content.processAfter as string;
   const recurrence = (content.recurrence as string) || null;
+
+  // Security (H1): a task's `script` is an arbitrary bash payload that runs via
+  // `execFile('bash', …)` on every firing. It must NEVER originate from an agent.
+  // This handler is the MCP/messages_out path — container-authored, hence
+  // untrusted — so we refuse any script here. Operator-authored pre-task scripts
+  // are inserted host-side via insertTask() in scripts/*-schedule.ts, which never
+  // pass through this handler.
+  if (content.script != null && content.script !== '') {
+    log.warn('Refused agent-supplied schedule_task script (not permitted via MCP)', {
+      taskId,
+      agentGroup: _session.agent_group_id,
+    });
+  }
 
   insertTask(inDb, {
     id: taskId,
@@ -34,7 +46,7 @@ export async function handleScheduleTask(
     platformId: (content.platformId as string) ?? null,
     channelType: (content.channelType as string) ?? null,
     threadId: (content.threadId as string) ?? null,
-    content: JSON.stringify({ prompt, script }),
+    content: JSON.stringify({ prompt, script: null }),
   });
   log.info('Scheduled task created', { taskId, processAfter, recurrence });
 }
@@ -81,8 +93,15 @@ export async function handleUpdateTask(
   if (content.recurrence === null || typeof content.recurrence === 'string') {
     update.recurrence = content.recurrence as string | null;
   }
-  if (content.script === null || typeof content.script === 'string') {
-    update.script = content.script as string | null;
+  // Security (H1): never let the MCP path set or clear a pre-task script (an
+  // arbitrary bash payload run via execFile on each firing). Operator scripts are
+  // managed host-side via scripts/*-schedule.ts; agents can update prompt /
+  // schedule / recurrence only.
+  if (content.script != null) {
+    log.warn('Ignored agent-supplied update_task script (not permitted via MCP)', {
+      taskId,
+      agentGroup: session.agent_group_id,
+    });
   }
   const touched = updateTask(inDb, taskId, update);
   log.info('Task updated', { taskId, touched, fields: Object.keys(update) });

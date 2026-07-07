@@ -59,9 +59,10 @@ disagree, mnemon wins and the page is refreshed.
 - **Cross-references:** plain relative markdown links between pages, e.g.
   `[OCP Global](../accounts/ocp-global.md)`. Link people↔accounts↔decisions↔products
   liberally — the link graph is the value.
-- **Sources:** the primary source is **mnemon**, read via the `mnemon recall` bash
-  CLI (not an MCP tool). Sort recalled facts by their `date:` tag to build a
-  chronological narrative.
+- **Sources:** the primary source is **mnemon**, read via the **`mnemon_recall`
+  MCP tool** (never the Bash `mnemon` CLI — the tool passes arguments without a
+  shell, so untrusted fact content can't be shell-evaluated). Sort recalled facts
+  by their `date:` tag to build a chronological narrative.
 
 ## Page format
 
@@ -95,8 +96,8 @@ sources: [mnemon, slack, jira, gmail, hubspot, krisp]
 ### Ingest (Sage)
 Synthesize/refresh one topic from mnemon into wiki page(s).
 
-1. **Cast a wide net:** several `mnemon recall "<varied queries>" --limit 50` calls
-   for the topic to maximize coverage (don't rely on one query).
+1. **Cast a wide net:** several `mnemon_recall` MCP-tool calls (query: each varied
+   query, limit: 50) for the topic to maximize coverage (don't rely on one query).
 2. Sort facts by their `date:` tag → chronological timeline.
 3. Write/overwrite the relevant page(s). **One topic legitimately touches several
    pages** — e.g. an OCP Global account update may also touch the CSM's person page

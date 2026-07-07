@@ -51,7 +51,6 @@ export const scheduleTask: McpToolDefinition = {
           description:
             'Cron expression for recurring tasks (e.g., "0 9 * * 1-5" = weekdays at 9am user-local). Evaluated in the user\'s timezone.',
         },
-        script: { type: 'string', description: 'Optional pre-agent script to run before processing' },
       },
       required: ['prompt', 'processAfter'],
     },
@@ -73,9 +72,11 @@ export const scheduleTask: McpToolDefinition = {
     const id = generateId();
     const r = routing();
     const recurrence = (args.recurrence as string) || null;
-    const script = (args.script as string) || null;
 
-    // Write as a system action — host will insert into inbound.db
+    // Write as a system action — host will insert into inbound.db. Note: no
+    // `script` field — pre-task scripts are operator-authored host-side only
+    // (see src/modules/scheduling/actions.ts H1 note); the host refuses any
+    // script arriving on this MCP path.
     writeMessageOut({
       id,
       kind: 'system',
@@ -86,7 +87,6 @@ export const scheduleTask: McpToolDefinition = {
         action: 'schedule_task',
         taskId: id,
         prompt,
-        script,
         processAfter,
         recurrence,
         platformId: r.platform_id,
@@ -259,10 +259,6 @@ export const updateTask: McpToolDefinition = {
           description:
             `New ISO 8601 timestamp for the next run (optional). Accepts either UTC (ending in "Z" / "+00:00") or a naive local timestamp interpreted in the user's timezone.`,
         },
-        script: {
-          type: 'string',
-          description: 'New pre-agent script (optional). Pass empty string to clear.',
-        },
       },
       required: ['taskId'],
     },
@@ -282,9 +278,10 @@ export const updateTask: McpToolDefinition = {
         return err(`invalid processAfter: ${args.processAfter}`);
       }
     }
-    // Empty string clears recurrence/script; undefined leaves them as-is.
+    // Empty string clears recurrence; undefined leaves it as-is. (No `script`
+    // field — pre-task scripts are operator-managed host-side; the host ignores
+    // any script on this MCP path. See src/modules/scheduling/actions.ts.)
     if (typeof args.recurrence === 'string') update.recurrence = args.recurrence === '' ? null : args.recurrence;
-    if (typeof args.script === 'string') update.script = args.script === '' ? null : args.script;
 
     if (Object.keys(update).length === 1) return err('at least one field to update is required');
 
