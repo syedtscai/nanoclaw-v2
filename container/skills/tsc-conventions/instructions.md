@@ -44,6 +44,88 @@ If recall finds no match, the entity may be genuinely new — use the cleanest
 single form and stay consistent; when unsure, prefer the spelling already in
 mnemon over the source's literal text.
 
+### People: canonical roster + alias map (Slack handle, display/Jira name, nickname)
+
+**This roster is the authoritative person map** (same role as the account map
+above). Resolve EVERY person mention to the canonical name here **before**
+putting it in `entities` — never write a source's literal handle / display name
+/ nickname as an entity. The same person appears **differently per source**:
+Slack pre-resolves `<@Uxxx>` to a profile name (so you resolve a *name*, not an
+ID); Jira shows the assignee's *display / real name* (which can differ from the
+Slack handle — e.g. Jira "Huong Truong" = **Cindy**); chat uses first names and
+nicknames. Canonical name = the wiki `people/` page name.
+
+**Nicknames — three cases:**
+1. **Substring of the real name** ("Shaji"/"Shaj"→Shajitha, "Syaf"→Syafiqah)
+   resolve on their own — no special handling; the canonical is obvious.
+2. **Distinctive non-substring** nickname / Jira name → listed as `aka` below.
+3. **Ultra-short / ambiguous** (a single letter like "T", or a bare first name
+   shared by several people) → **never auto-map**; resolve only from thread
+   context (who is being addressed), or attribute to the source, not a person.
+
+Employees (canonical (@slack-handle, team) — aka <other names>):
+
+  - Alek Soltirov (@soltirov, Customer Success)
+  - Alma Aletta (@alma, Customer Success)
+  - Alvin Lam (@alvin, Tech)
+  - Amalia Casas (@amalia, BD & Revenue)
+  - Amanda Cavalcante (@amanda, BD & Revenue)
+  - Ana Luiza Aragao (@analuiza, Customer Success) — aka AnaLuiza
+  - Brandon (@brandon, Tech)
+  - Chi Ngan Lee (@chingan, Tech)
+  - Cindy (@cindy, Tech) — aka Huong Truong (Jira/real name)
+  - Duc Dao (@arthur, Product) — aka Arthur Dao
+  - Elena Dodevska (@dodevska.elena, BD & Revenue) — aka Elena.D.
+  - Elena Ivanova (@elena, Customer Success)
+  - Elena Janevska (@elenajanevska94, Customer Success)
+  - Ha Pham (@phamha, Tech)
+  - Hoang Ha Pham (Evan) (@evan, Tech) — aka Tan (Evan), Evan
+  - Horatio Lyons (@horatio, BD & Revenue)
+  - Jane Evgeniya Kutergina (@jane, Product)
+  - Jerome Kusters (@jerome, BD & Revenue)
+  - khoinguyen (@khoi, Tech) — aka Khoi Nguyen, Khoi
+  - Laura Mendoza (@laura, BD & Revenue)
+  - Maria (@maria, Customer Success)
+  - Marina Coelho Barreto Campello de Lima (@marinalima, G&A) — aka Marina Lima
+  - Matheus Palma (@matheus, BD & Revenue)
+  - Nam Dinh (@nam, Product)
+  - Natalye Gembatiuk de Souza (@natalye, Customer Success)
+  - Nicole Caus (@nicole, Customer Success)
+  - Phi Nguyen (@phi, Tech)
+  - Phu Nguyen (@phu, Tech)
+  - Phuong Tran (@phuong, Product)
+  - Quan Minh Le (@quan, Tech)
+  - Ross Williams (@ross, BD & Revenue)
+  - Saw Thinzar Myint (@sawthinzar, BD & Revenue)
+  - Shajitha Sinasamy (@shajitha, BD & Revenue) — aka Shaji, Shaj
+  - Shern Yap (@shern, Tech) — aka Yap Shern Shern (HR name)
+  - Simone Fulgoni Rodrigues Branco (@simone, BD & Revenue)
+  - Sofija Minova (@lazarevskasofija, Customer Success)
+  - Srishti Sinha (@srishti, Customer Success)
+  - Syafiqah Syed Isha (@syafiqah, Customer Success) — aka Syaf
+  - Syed Shahid (@syed, Tech) — aka Mr. S
+  - Terence Lyons (@terence, G&A) — aka "T" (single letter — CONTEXT-ONLY, never auto-map)
+  - Tra Nguyen (@tra, Tech)
+  - Vallen Barretto (@vallen, Customer Success)
+  - Wasay (@wasay, Customer Success)
+  - Wei Jie (@weijie, G&A)
+
+  *Not employees* (freelance data-specialist contractors, no wiki page; resolve to canonical if seen): Alex Gwanyanya (@getrudegwanyanya), Mohammed Hamdy (@mohammedzohry2018), Khudsia Tarannum Taj (@khudsiatt), Silvia Elizabeth Lima Domingues (@sil.elizabeth), Giovanna Alevato (@giovanna.alevato).
+
+- **This map (not mnemon) is the source of truth** for person aliases — mnemon
+  reference facts get auto-pruned under its insight cap, so don't rely on a
+  stored "identity fact." When you meet a **new alias not in this map** (a fresh
+  Jira display name, a nickname), resolve it by context, use the canonical name,
+  and **flag the new alias in your run log / digest** so the operator can add it
+  here. Do not depend on writing it back to mnemon.
+- **Fallback lookup for an unrecognized alias:** `mnemon_recall({ query:
+  "<alias>", exact: true })` (exact substring / `--basic`) — it surfaces
+  operational facts that literally contain the alias, which usually reveal the
+  person; smart recall does not (it buries the match).
+- **Three distinct Elenas** (Ivanova / Janevska / Dodevska) and any shared first
+  name: never resolve a bare first name when more than one person shares it —
+  disambiguate by team/account context or attribute to the source.
+
 **`entities` fields are specific proper nouns ONLY** — real people,
 accounts/companies, named products/projects/issue-keys (e.g. `DP World`,
 `Elena Dodevska`, `Genie`, `GEN5-4359`). **NEVER put in entities:**
