@@ -159,12 +159,19 @@ export const mnemonRemember: McpToolDefinition = {
 export const mnemonRecall: McpToolDefinition = {
   tool: {
     name: 'mnemon_recall',
-    description: 'Recall facts from mnemon by entity or topic. Run before writing to dedup, resolve canonical names, and find conflicts.',
+    description:
+      'Recall facts from mnemon by entity or topic. Run before writing to dedup, resolve canonical names, and find conflicts. ' +
+      'Default mode is smart (intent/graph-ranked) recall — best for topical/semantic queries. ' +
+      'Set exact:true for alias resolution (a username, display name, Jira name, email, or nickname → its canonical entity): smart recall buries a person\'s identity fact under the many operational facts that mention them, whereas exact (substring) match reliably surfaces it.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        query: { type: 'string', description: 'Entity or topic to recall.' },
+        query: { type: 'string', description: 'Entity or topic to recall (smart mode), or the literal alias/substring to match (exact mode).' },
         limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (optional).' },
+        exact: {
+          type: 'boolean',
+          description: 'Exact substring (SQL LIKE) match instead of smart recall. Use to resolve a raw alias (@handle, display name, Jira name, email, nickname) to its canonical name.',
+        },
       },
       required: ['query'],
     },
@@ -180,6 +187,7 @@ export const mnemonRecall: McpToolDefinition = {
       if (!Number.isInteger(limit) || limit < 1 || limit > 50) return err('limit must be an integer 1-50');
       argv.push('--limit', String(limit));
     }
+    if (args.exact === true) argv.push('--basic');
     return runMnemon(argv);
   },
 };

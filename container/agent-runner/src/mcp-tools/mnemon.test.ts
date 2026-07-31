@@ -82,6 +82,21 @@ describe('mnemon_recall / forget / run', () => {
     expect(out).toContain('ARG:OCP `id` Global');
     expect(out).toContain('ARG:--limit');
     expect(out).toContain('ARG:5');
+    // Smart recall by default — no --basic unless exact is requested.
+    expect(out).not.toContain('ARG:--basic');
+  });
+
+  it('recall exact:true appends --basic for alias resolution', async () => {
+    const res = await mnemonRecall.handler({ query: 'dodevska.elena', exact: true });
+    const out = text(res);
+    expect(out).toContain('ARG:recall');
+    expect(out).toContain('ARG:dodevska.elena');
+    expect(out).toContain('ARG:--basic');
+  });
+
+  it('recall exact:false does not append --basic', async () => {
+    const out = text(await mnemonRecall.handler({ query: 'Alek', exact: false }));
+    expect(out).not.toContain('ARG:--basic');
   });
 
   it('forget rejects ids with shell-active characters', async () => {
