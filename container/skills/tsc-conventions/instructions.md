@@ -88,6 +88,7 @@ Employees (canonical (@slack-handle, team) — aka <other names>):
   - Maria (@maria, Customer Success)
   - Marina Coelho Barreto Campello de Lima (@marinalima, G&A) — aka Marina Lima
   - Matheus Palma (@matheus, BD & Revenue)
+  - Mohamed Fayyaz (@fayyaz, BD & Revenue) — aka Fayyaz (preferred), Faz; full legal name Mohamed Fayyaz Bin Mohamed Faqarh. **Account Manager** (actual role); official title "Engagement Manager, Agentic Public Affairs"; external variant "Public Affairs Engagement Manager". Reports to Jerome. Started 2026-08-03.
   - Nam Dinh (@nam, Product)
   - Natalye Gembatiuk de Souza (@natalye, Customer Success)
   - Nicole Caus (@nicole, Customer Success)
