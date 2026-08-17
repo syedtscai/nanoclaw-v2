@@ -113,6 +113,12 @@ Employees (canonical (@slack-handle, team) — aka <other names>):
 
   *Not employees* (freelance data-specialist contractors, no wiki page; resolve to canonical if seen): Alex Gwanyanya (@getrudegwanyanya), Mohammed Hamdy (@mohammedzohry2018), Khudsia Tarannum Taj (@khudsiatt), Silvia Elizabeth Lima Domingues (@sil.elizabeth), Giovanna Alevato (@giovanna.alevato).
 
+  *Incoming — hired, has NOT started* (no account anywhere yet; do not treat as
+  active staff, and do not create a wiki page until day one): **Marina Massoni**
+  — Latam BU; start date, role and reporting line all unknown. Jira misspells her
+  "Marina Mas**ss**oni" (three s's) in IO-573 and SEC-1799, so a `text ~
+  "Massoni"` search finds nothing.
+
 - **This map (not mnemon) is the source of truth** for person aliases — mnemon
   reference facts get auto-pruned under its insight cap, so don't rely on a
   stored "identity fact." When you meet a **new alias not in this map** (a fresh
@@ -126,6 +132,12 @@ Employees (canonical (@slack-handle, team) — aka <other names>):
 - **Three distinct Elenas** (Ivanova / Janevska / Dodevska) and any shared first
   name: never resolve a bare first name when more than one person shares it —
   disambiguate by team/account context or attribute to the source.
+- **Two distinct Marinas** (as of Aug 2026): **Marina Coelho Barreto Campello de
+  Lima** (@marinalima, Head of People Systems/HR, G&A, Singapore — usually
+  "Marina Lima") and **Marina Massoni** (incoming, Latam, not yet started). Never
+  auto-map a bare "Marina". Watch the trap: Marina Lima is the HR reporter on
+  Marina Massoni's own onboarding tickets, so both legitimately appear in the
+  same record — read the role, not just the name.
 
 **`entities` fields are specific proper nouns ONLY** — real people,
 accounts/companies, named products/projects/issue-keys (e.g. `DP World`,
